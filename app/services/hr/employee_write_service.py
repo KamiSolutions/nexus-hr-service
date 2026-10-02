@@ -64,7 +64,9 @@ async def list_employees(*, tenant_id: str) -> list[EmployeeOut]:
         return [_to_out(row) for row in result.scalars().all()]
 
 
-async def create_employee(payload: EmployeeCreate, *, tenant_id: str, token: str) -> EmployeeWriteResult:
+async def create_employee(
+    payload: EmployeeCreate, *, tenant_id: str, actor_user_id: str, actor_role: str | None
+) -> EmployeeWriteResult:
     now = datetime.now(timezone.utc)
     row = EmployeeModel(
         id=str(uuid.uuid4()),
@@ -84,7 +86,8 @@ async def create_employee(payload: EmployeeCreate, *, tenant_id: str, token: str
     async with httpx.AsyncClient(timeout=settings.AUDIT_SERVICE_TIMEOUT_SECONDS) as client:
         audit_status, audit_detail = await record_audit_event(
             client,
-            token=token,
+            actor_user_id=actor_user_id,
+            actor_role=actor_role,
             tenant_id=tenant_id,
             action="employee.created",
             resource_type="employee",
@@ -100,7 +103,8 @@ async def update_employee(
     payload: EmployeeUpdate,
     *,
     tenant_id: str,
-    token: str,
+    actor_user_id: str,
+    actor_role: str | None,
 ) -> EmployeeWriteResult:
     async with AsyncSessionLocal() as session:
         row = await session.get(EmployeeModel, employee_id)
@@ -127,7 +131,8 @@ async def update_employee(
     async with httpx.AsyncClient(timeout=settings.AUDIT_SERVICE_TIMEOUT_SECONDS) as client:
         audit_status, audit_detail = await record_audit_event(
             client,
-            token=token,
+            actor_user_id=actor_user_id,
+            actor_role=actor_role,
             tenant_id=tenant_id,
             action="employee.updated",
             resource_type="employee",
@@ -138,7 +143,9 @@ async def update_employee(
     return EmployeeWriteResult(employee=out, audit=audit_status, audit_detail=audit_detail)
 
 
-async def delete_employee(employee_id: str, *, tenant_id: str, token: str) -> EmployeeDeleteResult:
+async def delete_employee(
+    employee_id: str, *, tenant_id: str, actor_user_id: str, actor_role: str | None
+) -> EmployeeDeleteResult:
     async with AsyncSessionLocal() as session:
         row = await session.get(EmployeeModel, employee_id)
         if row is None or row.tenant_id != tenant_id:
@@ -149,7 +156,8 @@ async def delete_employee(employee_id: str, *, tenant_id: str, token: str) -> Em
     async with httpx.AsyncClient(timeout=settings.AUDIT_SERVICE_TIMEOUT_SECONDS) as client:
         audit_status, audit_detail = await record_audit_event(
             client,
-            token=token,
+            actor_user_id=actor_user_id,
+            actor_role=actor_role,
             tenant_id=tenant_id,
             action="employee.deleted",
             resource_type="employee",
